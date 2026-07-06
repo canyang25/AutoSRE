@@ -1,12 +1,12 @@
-# AIOps Incident Agent
+# AutoSRE
 
-> An LLM agent that takes a production alert from detection to resolution — **autonomously**. It pulls metrics and logs, diagnoses the root cause, runs a remediation playbook, and writes the incident report. No human in the loop.
+> An autonomous, LLM-powered Site Reliability Engineer. Give it a production alert and it pulls the metrics and logs, diagnoses the root cause, runs the fix, and writes the incident report — **no human in the loop**.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
-![Orchestration](https://img.shields.io/badge/orchestration-Dify-6938ef)
+![Agent](https://img.shields.io/badge/agent-Claude%20tool--use-d97757)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-This is a reference implementation of a **closed-loop AIOps agent**. A fault alert fires; the agent investigates like an on-call SRE would — check the dashboards, read the logs, form a hypothesis, apply a fix, verify — and hands back a written report. Observability backends (Prometheus, Elasticsearch/ELK, Ansible) are provided as lightweight mocks so the whole loop runs on a laptop.
+This is a reference implementation of a **closed-loop AIOps agent**. A fault alert fires; the agent investigates like an on-call SRE would — check the dashboards, read the logs, form a hypothesis, apply a fix, verify — and hands back a written report. The agent is a self-contained Python tool-use loop (Anthropic / Claude); observability backends (Prometheus, Elasticsearch/ELK, Ansible) are provided as lightweight mocks so the whole thing runs on a laptop.
 
 ## How it works
 
@@ -14,7 +14,7 @@ This is a reference implementation of a **closed-loop AIOps agent**. A fault ale
 flowchart LR
     ALERT([Fault alert]) --> AGENT
 
-    subgraph AGENT [AIOps Agent · Dify Workflow]
+    subgraph AGENT [AIOps Agent · Python + Claude tool-use]
         direction TB
         D1[1 · Gather signals]
         D2[2 · Diagnose root cause]
@@ -30,7 +30,7 @@ flowchart LR
     D4 --> REPORT([Incident report])
 ```
 
-The agent runs a five-step loop:
+The agent runs a four-step loop:
 
 1. **Gather signals** — query time-series metrics (Prometheus) and error logs (ELK) for the affected service.
 2. **Diagnose** — the LLM correlates the signals into a root-cause hypothesis.
@@ -51,11 +51,11 @@ Three faults ship with the demo, each with a known ground-truth root cause so yo
 
 ### 1. See the loop without any setup
 
-The trigger script has an offline mode that walks through exactly what the agent does — no servers, no keys:
+There's an offline mode that walks through exactly what the agent does — no servers, no keys:
 
 ```bash
-python trigger_fault.py db --simulate
-python trigger_fault.py --list
+python agent.py db --simulate
+python agent.py --list
 ```
 
 ### 2. Run the mock backends
@@ -71,20 +71,27 @@ pip install -r requirements.txt
 | Mock ELK        | http://localhost:9093   | Log search                   |
 | Mock Ansible    | http://localhost:9092   | Playbook execution           |
 
-### 3. Wire up the agent and fire a real alert
-
-The agent brain is a [Dify](https://dify.ai) Workflow app that calls the three mock tools above. Point the script at your Dify instance:
+### 3. Run the real agent
 
 ```bash
-cp .env.example .env      # then fill in DIFY_API_BASE and DIFY_WORKFLOW_API_KEY
-python trigger_fault.py db
+cp .env.example .env      # then add your ANTHROPIC_API_KEY
+python agent.py db
 ```
+
+The agent calls the three mock tools, diagnoses the root cause, runs the matching
+playbook, and writes a report to `reports/incident-*.md`. Without an API key it
+automatically falls back to the offline walkthrough, so it never hard-fails.
+
+> **Optional — Dify path:** `trigger_fault.py` sends the same alert to a [Dify](https://dify.ai)
+> Workflow app instead of running the loop in Python. Set `DIFY_*` in `.env` and run
+> `python trigger_fault.py db`. (No Dify workflow ships with this repo — see Notes.)
 
 ## Repo structure
 
 ```
 .
-├── trigger_fault.py   # CLI: fire a scenario at the agent (or --simulate offline)
+├── agent.py           # the agent: Claude tool-use loop over the mock tools
+├── trigger_fault.py   # optional: send the alert to a Dify workflow (or --simulate)
 ├── deploy.sh          # spin up the mock observability stack via docker compose
 ├── tools/
 │   ├── mock_prometheus.py   # metrics API  (:9091)
@@ -96,13 +103,14 @@ python trigger_fault.py db
 
 ## Tech stack
 
-- **Orchestration:** Dify (LLM workflow / agent)
+- **Agent:** Python + Anthropic SDK (Claude tool-use loop)
 - **Tools:** Flask mock services standing in for Prometheus, Elasticsearch/ELK, and Ansible
-- **Client:** Python + `requests`
+- **Optional orchestration:** [Dify](https://dify.ai) workflow (via `trigger_fault.py`)
 
 ## Notes
 
-- The Dify Workflow definition (DSL) is **not** included in this repo — the original hosted instance is gone. To run the full loop you'll need to rebuild a Dify workflow that (a) accepts the alert fields as inputs and (b) calls the three mock tools. The mock APIs are deliberately forgiving about request shape, so they're easy to connect. Until then, `--simulate` demonstrates the intended behavior.
+- **Primary path is `agent.py`** — a self-contained loop that needs only an `ANTHROPIC_API_KEY` and the local mocks. It falls back to an offline walkthrough when no key is set.
+- The original Dify Workflow definition (DSL) is **not** included — that hosted instance is gone. `trigger_fault.py` remains for anyone who wants to rebuild a Dify workflow, but it isn't required to run the project.
 - The mock services return canned-but-realistic data; they exist to exercise the agent's reasoning, not to be real observability backends.
 
 ## License
