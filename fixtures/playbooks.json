@@ -1,0 +1,50 @@
+{
+  "restore_db_pool.yml": {
+    "description": "Restore database connection pool to healthy configuration.",
+    "match_keywords": ["db", "pool", "connection", "database"],
+    "result": {
+      "status": "success",
+      "message": "Database connection pool restored from 50 to 200.",
+      "changes": {"max_connections": "50 -> 200"}
+    },
+    "remediates": {
+      "service": "order-service",
+      "metrics": {
+        "db_connections": {"min": 20, "max": 60},
+        "response_time": {"min": 50, "max": 250}
+      }
+    }
+  },
+  "clean_disk_space.yml": {
+    "description": "Clean temporary files and reclaim disk space.",
+    "match_keywords": ["disk", "clean", "space", "storage"],
+    "result": {
+      "status": "success",
+      "message": "Cleaned 15GB temp files, /data usage from 98% to 73%.",
+      "changes": {"freed_space": "15GB"}
+    },
+    "remediates": {
+      "service": "file-service",
+      "metrics": {
+        "disk_usage": {"min": 40, "max": 75},
+        "io_wait": {"min": 1, "max": 8}
+      }
+    }
+  },
+  "restart_service.yml": {
+    "description": "Restart a service and recover network connections.",
+    "match_keywords": ["restart", "service", "reboot", "recover"],
+    "result": {
+      "status": "success",
+      "message": "payment-service restarted, network connection recovered.",
+      "changes": {"service_state": "restarted"}
+    },
+    "remediates": {
+      "service": "payment-service",
+      "metrics": {
+        "packet_loss": {"min": 0, "max": 2},
+        "latency": {"min": 5, "max": 50}
+      }
+    }
+  }
+}

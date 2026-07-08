@@ -1,0 +1,32 @@
+{
+  "db": {
+    "alert_id": "ALERT-DB-001",
+    "service": "order-service",
+    "severity": "critical",
+    "description": "Order API latency increased from 200ms to 1.5s, user complaints rising.",
+    "timestamp_offset_minutes": -60,
+    "metrics": "response_time, db_connections",
+    "expected_root_cause": "Database connection pool misconfiguration",
+    "expected_remediation": "restore_db_pool.yml (max_connections 50 -> 200)"
+  },
+  "disk": {
+    "alert_id": "ALERT-DISK-001",
+    "service": "file-service",
+    "severity": "high",
+    "description": "/data partition usage reached 98%, service unavailable.",
+    "timestamp_offset_minutes": -270,
+    "metrics": "disk_usage, io_wait",
+    "expected_root_cause": "Disk space exhausted",
+    "expected_remediation": "clean_disk_space.yml (free ~15GB of temp files)"
+  },
+  "network": {
+    "alert_id": "ALERT-NET-001",
+    "service": "payment-service",
+    "severity": "critical",
+    "description": "Payment service network abnormal, failure rate increased.",
+    "timestamp_offset_minutes": -15,
+    "metrics": "packet_loss, latency",
+    "expected_root_cause": "Network partition fault",
+    "expected_remediation": "restart_service.yml (restart payment-service)"
+  }
+}

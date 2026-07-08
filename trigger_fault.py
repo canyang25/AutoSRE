@@ -15,10 +15,20 @@ Usage:
 """
 
 import argparse
+import json
+import logging
 import os
 import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import requests
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 try:
     from dotenv import load_dotenv
@@ -32,7 +42,8 @@ DIFY_API_BASE = os.getenv("DIFY_API_BASE", "http://localhost/v1")
 DIFY_WORKFLOW_API_KEY = os.getenv("DIFY_WORKFLOW_API_KEY", "")
 WORKFLOW_URL = f"{DIFY_API_BASE.rstrip('/')}/workflows/run"
 
-SCENARIOS = {
+# Hardcoded default scenarios used as a fallback when scenarios.json is missing.
+_DEFAULT_SCENARIOS = {
     "db": {
         "alert_id": "ALERT-DB-001",
         "service": "order-service",
@@ -66,13 +77,54 @@ SCENARIOS = {
 }
 
 
+def _load_scenarios() -> dict:
+    """Load scenarios from scenarios.json if it exists, otherwise fall back to _DEFAULT_SCENARIOS.
+
+    When loading from JSON, ``timestamp_offset_minutes`` is converted to a
+    dynamic ISO 8601 timestamp relative to *now*.  If the field is absent the
+    original fixed timestamp from the defaults is used instead.
+    """
+    json_path = Path(__file__).resolve().parent / "scenarios.json"
+    if not json_path.is_file():
+        logger.info("scenarios.json not found; using built-in default scenarios.")
+        return _DEFAULT_SCENARIOS
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as fh:
+            raw: dict = json.load(fh)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to load scenarios.json (%s); falling back to defaults.", exc)
+        return _DEFAULT_SCENARIOS
+
+    now = datetime.now(timezone.utc)
+    scenarios: dict = {}
+    for name, data in raw.items():
+        scenario = dict(data)  # shallow copy so we don't mutate the parsed JSON
+        offset = scenario.pop("timestamp_offset_minutes", None)
+        if offset is not None:
+            ts = now + timedelta(minutes=offset)
+            scenario["timestamp"] = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+        elif "timestamp" not in scenario:
+            # No offset and no fixed timestamp -- use the default if available.
+            default = _DEFAULT_SCENARIOS.get(name, {})
+            scenario["timestamp"] = default.get("timestamp", now.strftime("%Y-%m-%dT%H:%M:%SZ"))
+        scenarios[name] = scenario
+
+    logger.info("Loaded %d scenario(s) from %s.", len(scenarios), json_path)
+    return scenarios
+
+
+# Module-level scenarios dict so ``from trigger_fault import SCENARIOS`` works.
+SCENARIOS = _load_scenarios()
+
+
 def send_to_dify(scenario_name: str) -> int:
     """Send the scenario to the Dify Workflow API and print the result."""
     scenario = SCENARIOS[scenario_name]
 
     if not DIFY_WORKFLOW_API_KEY:
-        print("Error: DIFY_WORKFLOW_API_KEY is not set.")
-        print("Copy .env.example to .env and add your key, or run with --simulate.")
+        logger.error("DIFY_WORKFLOW_API_KEY is not set.")
+        logger.error("Copy .env.example to .env and add your key, or run with --simulate.")
         return 1
 
     payload = {
@@ -85,31 +137,29 @@ def send_to_dify(scenario_name: str) -> int:
         "Authorization": f"Bearer {DIFY_WORKFLOW_API_KEY}",
     }
 
-    print(f"Triggering fault scenario '{scenario_name}' -> {WORKFLOW_URL}")
-    print(f"  {scenario['description']}\n")
+    logger.info("Triggering fault scenario '%s' -> %s", scenario_name, WORKFLOW_URL)
+    logger.info("  %s", scenario["description"])
 
     try:
         response = requests.post(WORKFLOW_URL, json=payload, headers=headers, timeout=60)
     except requests.RequestException as exc:
-        print(f"Request failed: {exc}")
+        logger.error("Request failed: %s", exc)
         return 1
 
     if response.status_code != 200:
-        print(f"Workflow call failed (HTTP {response.status_code}):")
-        print(response.text)
+        logger.error("Workflow call failed (HTTP %d):\n%s", response.status_code, response.text)
         return 1
 
     try:
         result = response.json()
     except ValueError:
-        print("Response was not valid JSON:")
-        print(response.text)
+        logger.error("Response was not valid JSON:\n%s", response.text)
         return 1
 
-    print(f"Workflow Run ID: {result.get('workflow_run_id', 'N/A')}")
+    logger.info("Workflow Run ID: %s", result.get("workflow_run_id", "N/A"))
     outputs = (result.get("data") or {}).get("outputs") or {}
-    print("\n=== Agent output ===")
-    print(outputs)
+    logger.info("=== Agent output ===")
+    logger.info("%s", outputs)
     return 0
 
 
@@ -117,10 +167,10 @@ def simulate(scenario_name: str) -> int:
     """Print the closed-loop the agent runs, without contacting any server."""
     scenario = SCENARIOS[scenario_name]
 
-    print(f"[SIMULATED] Fault scenario: {scenario_name}")
-    print(f"  Alert:   {scenario['alert_id']} ({scenario['severity']})")
-    print(f"  Service: {scenario['service']}")
-    print(f"  Symptom: {scenario['description']}\n")
+    logger.info("[SIMULATED] Fault scenario: %s", scenario_name)
+    logger.info("  Alert:   %s (%s)", scenario["alert_id"], scenario["severity"])
+    logger.info("  Service: %s", scenario["service"])
+    logger.info("  Symptom: %s", scenario["description"])
 
     steps = [
         f"Query metrics from Prometheus  -> {scenario['service']}: {scenario['metrics']}",
@@ -130,9 +180,9 @@ def simulate(scenario_name: str) -> int:
         "Generate incident report        -> summary + timeline + resolution",
     ]
     for i, step in enumerate(steps, 1):
-        print(f"  {i}. {step}")
+        logger.info("  %d. %s", i, step)
 
-    print("\nRun the real loop by pointing DIFY_* env vars at a live Dify workflow.")
+    logger.info("Run the real loop by pointing DIFY_* env vars at a live Dify workflow.")
     return 0
 
 
@@ -144,9 +194,9 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.list:
-        print("Available scenarios:")
+        logger.info("Available scenarios:")
         for name, s in SCENARIOS.items():
-            print(f"  {name:8} {s['service']:16} {s['description']}")
+            logger.info("  %s %s %s", f"{name:8}", f"{s['service']:16}", s["description"])
         return 0
 
     if not args.scenario:

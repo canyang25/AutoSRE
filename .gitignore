@@ -20,3 +20,8 @@ docker-compose-mock.yml
 .DS_Store
 .idea/
 .vscode/
+
+# Generated reports
+reports/
+
+# Fixtures are tracked (do NOT ignore)

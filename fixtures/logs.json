@@ -1,0 +1,19 @@
+{
+  "order-service": [
+    {"timestamp": "2025-06-04T13:55:00Z", "level": "INFO", "message": "OrderService started successfully"},
+    {"timestamp": "2025-06-04T14:00:00Z", "level": "ERROR", "message": "DB connection timeout (500ms > 200ms)"},
+    {"timestamp": "2025-06-04T14:01:00Z", "level": "WARN", "message": "Database connection pool at 98% capacity"},
+    {"timestamp": "2025-06-04T14:02:00Z", "level": "ERROR", "message": "DB connection timeout (520ms)"},
+    {"timestamp": "2025-06-04T14:03:00Z", "level": "ERROR", "message": "Transaction rollback due to timeout"}
+  ],
+  "file-service": [
+    {"timestamp": "2025-06-04T10:25:00Z", "level": "WARN", "message": "/data partition usage reached 90%"},
+    {"timestamp": "2025-06-04T10:28:00Z", "level": "ERROR", "message": "No space left on device"},
+    {"timestamp": "2025-06-04T10:30:00Z", "level": "ERROR", "message": "Failed to write log file: disk full"}
+  ],
+  "payment-service": [
+    {"timestamp": "2025-06-04T16:40:00Z", "level": "WARN", "message": "Network latency increased to 800ms"},
+    {"timestamp": "2025-06-04T16:45:00Z", "level": "ERROR", "message": "Connection reset by peer"},
+    {"timestamp": "2025-06-04T16:46:00Z", "level": "ERROR", "message": "Payment gateway timeout"}
+  ]
+}

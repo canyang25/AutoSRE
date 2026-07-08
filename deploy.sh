@@ -18,8 +18,11 @@ services:
       - "9091:9091"
     volumes:
       - ./tools/mock_prometheus.py:/app/mock.py
+      - ./fixtures:/app/fixtures
     working_dir: /app
     command: sh -c "pip install flask && python mock.py"
+    networks:
+      - mocknet
 
   mock-ansible:
     image: python:3.9-slim
@@ -27,8 +30,14 @@ services:
       - "9092:9092"
     volumes:
       - ./tools/mock_ansible.py:/app/mock.py
+      - ./fixtures:/app/fixtures
     working_dir: /app
     command: sh -c "pip install flask && python mock.py"
+    environment:
+      - PROMETHEUS_URL=http://mock-prometheus:9091
+      - ELK_URL=http://mock-elk:9093
+    networks:
+      - mocknet
 
   mock-elk:
     image: python:3.9-slim
@@ -36,8 +45,14 @@ services:
       - "9093:9093"
     volumes:
       - ./tools/mock_elk.py:/app/mock.py
+      - ./fixtures:/app/fixtures
     working_dir: /app
     command: sh -c "pip install flask && python mock.py"
+    networks:
+      - mocknet
+
+networks:
+  mocknet:
 EOF
 
 # Generate sample fault scenarios (idempotent)
@@ -80,7 +95,6 @@ docker compose -f docker-compose-mock.yml up -d
 
 echo "======================================"
 echo "Deployment completed successfully!"
-echo "Dify UI (本地直连):   http://localhost"
 echo "Mock Prometheus:      http://localhost:9091"
 echo "Mock Ansible:         http://localhost:9092"
 echo "Mock ELK:             http://localhost:9093"

@@ -22,11 +22,18 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
 import sys
 from datetime import datetime, timezone
 
 import requests
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # Reuse the scenario catalog and offline walkthrough from the trigger script.
 # Importing is safe: trigger_fault's CLI only runs under its own __main__ guard.
@@ -52,7 +59,7 @@ You are given a production fault alert. Investigate and resolve it end to end:
 1. Gather signals: use query_metrics and search_logs to inspect the affected service.
 2. Diagnose: state a single, specific root cause supported by the evidence you gathered.
 3. Remediate: call run_playbook with the playbook that fixes that root cause. Known
-   playbooks: restore_db_pool.yml, clean_disk_space.yml, restart_service.yml.
+   playbooks: call list_playbooks to discover available remediation playbooks.
 4. Report: after remediation succeeds, write a concise incident report in Markdown with
    these sections: Summary, Timeline, Root Cause, Remediation, Verification.
 
@@ -98,6 +105,14 @@ TOOLS = [
                 "hosts": {"type": "array", "items": {"type": "string"}},
             },
             "required": ["playbook"],
+        },
+    },
+    {
+        "name": "list_playbooks",
+        "description": "List available Ansible remediation playbooks and their descriptions. Call this to discover what playbooks are available before running one.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
         },
     },
 ]
@@ -148,10 +163,17 @@ def _tool_run_playbook(playbook: str, hosts: list = None) -> dict:
     return resp.json()
 
 
+def _tool_list_playbooks() -> dict:
+    resp = requests.get(f"{ANSIBLE_URL}/api/v1/playbooks", timeout=15)
+    resp.raise_for_status()
+    return resp.json()
+
+
 TOOL_DISPATCH = {
     "query_metrics": _tool_query_metrics,
     "search_logs": _tool_search_logs,
     "run_playbook": _tool_run_playbook,
+    "list_playbooks": _tool_list_playbooks,
 }
 
 
@@ -205,8 +227,8 @@ def resolve_backend():
 # --- Agent loops ---------------------------------------------------------------
 
 def _log_tool(name, tool_input, result):
-    print(f"  [tool] {name}({json.dumps(tool_input)})")
-    print(f"         -> {json.dumps(result)[:160]}")
+    logger.debug("  [tool] %s(%s)", name, json.dumps(tool_input))
+    logger.debug("         -> %s", json.dumps(result)[:160])
 
 
 def _run_openai_compatible(alert: dict, cfg: dict) -> str:
@@ -270,16 +292,16 @@ def run_agent(scenario_name: str) -> int:
     """Run the live tool-use loop. Falls back to simulate() on any failure."""
     cfg = resolve_backend()
     if cfg is None:
-        print("No LLM backend configured -- running offline simulation instead.")
-        print("Set GROQ_API_KEY (free, no credit card) to run the real agent. See .env.example.\n")
+        logger.info("No LLM backend configured -- running offline simulation instead.")
+        logger.info("Set GROQ_API_KEY (free, no credit card) to run the real agent. See .env.example.")
         return simulate(scenario_name)
 
     scenario = SCENARIOS[scenario_name]
     # Hide the ground-truth answers from the agent -- it must derive them.
     alert = {k: v for k, v in scenario.items() if not k.startswith("expected_")}
 
-    print(f"Dispatching AutoSRE agent for '{scenario_name}' via {cfg['kind']} ({cfg['model']})")
-    print(f"  Alert: {alert['alert_id']} -- {alert['description']}\n")
+    logger.info("Dispatching AutoSRE agent for '%s' via %s (%s)", scenario_name, cfg["kind"], cfg["model"])
+    logger.info("  Alert: %s -- %s", alert["alert_id"], alert["description"])
 
     try:
         if cfg["kind"] == "anthropic":
@@ -287,15 +309,15 @@ def run_agent(scenario_name: str) -> int:
         else:
             report = _run_openai_compatible(alert, cfg)
     except Exception as exc:
-        print(f"Agent run failed ({type(exc).__name__}: {exc}). Falling back to simulation.\n")
+        logger.error("Agent run failed (%s: %s). Falling back to simulation.", type(exc).__name__, exc)
         return simulate(scenario_name)
 
     if not report:
-        print("Agent produced no report (hit iteration limit or empty response).")
+        logger.info("Agent produced no report (hit iteration limit or empty response).")
         return 1
 
-    print("\n=== Incident report ===\n")
-    print(report)
+    logger.info("\n=== Incident report ===\n")
+    logger.info("%s", report)
     _write_report(scenario, report)
     return 0
 
@@ -306,7 +328,7 @@ def _write_report(scenario: dict, report: str) -> None:
     path = os.path.join("reports", f"incident-{scenario['alert_id']}-{stamp}.md")
     with open(path, "w") as f:
         f.write(report)
-    print(f"\nReport written to {path}")
+    logger.info("Report written to %s", path)
 
 
 def main() -> int:
@@ -317,9 +339,9 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.list:
-        print("Available scenarios:")
+        logger.info("Available scenarios:")
         for name, s in SCENARIOS.items():
-            print(f"  {name:8} {s['service']:16} {s['description']}")
+            logger.info("  %s %s %s", f"{name:8}", f"{s['service']:16}", s["description"])
         return 0
 
     if not args.scenario:
