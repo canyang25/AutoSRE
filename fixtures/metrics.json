@@ -1,0 +1,16 @@
+{
+  "order-service": {
+    "cpu_usage": {"min": 20, "max": 95, "points": 60},
+    "memory_usage": {"min": 30, "max": 85, "points": 60},
+    "db_connections": {"min": 150, "max": 200, "points": 60, "type": "int"},
+    "response_time": {"min": 50, "max": 1500, "points": 60}
+  },
+  "file-service": {
+    "disk_usage": {"min": 85, "max": 99, "points": 60},
+    "io_wait": {"min": 5, "max": 50, "points": 60}
+  },
+  "payment-service": {
+    "packet_loss": {"min": 0, "max": 50, "points": 60},
+    "latency": {"min": 10, "max": 1200, "points": 60}
+  }
+}

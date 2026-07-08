@@ -3,7 +3,8 @@
 > An autonomous, LLM-powered Site Reliability Engineer. Give it a production alert and it pulls the metrics and logs, diagnoses the root cause, runs the fix, and writes the incident report — **no human in the loop**.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
-![Agent](https://img.shields.io/badge/agent-Claude%20tool--use-d97757)
+![Agent](https://img.shields.io/badge/agent-LLM%20tool--use-d97757)
+![Runs free](https://img.shields.io/badge/runs%20free-Groq%20%7C%20Ollama-2ea44f)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 This is a reference implementation of a **closed-loop AIOps agent**. A fault alert fires; the agent investigates like an on-call SRE would — check the dashboards, read the logs, form a hypothesis, apply a fix, verify — and hands back a written report. The agent is a self-contained Python tool-use loop (Anthropic / Claude); observability backends (Prometheus, Elasticsearch/ELK, Ansible) are provided as lightweight mocks so the whole thing runs on a laptop.
@@ -73,14 +74,25 @@ pip install -r requirements.txt
 
 ### 3. Run the real agent
 
+Grab a **free** Groq API key (no credit card) at [console.groq.com/keys](https://console.groq.com/keys), then:
+
 ```bash
-cp .env.example .env      # then add your ANTHROPIC_API_KEY
+cp .env.example .env      # then add your GROQ_API_KEY
 python agent.py db
 ```
 
 The agent calls the three mock tools, diagnoses the root cause, runs the matching
-playbook, and writes a report to `reports/incident-*.md`. Without an API key it
+playbook, and writes a report to `reports/incident-*.md`. Without a key it
 automatically falls back to the offline walkthrough, so it never hard-fails.
+
+Any LLM backend works — the agent auto-detects whichever you configure in `.env`:
+
+| Backend       | Cost              | Setup                                     |
+| ------------- | ----------------- | ----------------------------------------- |
+| **Groq**      | Free (no card)    | `GROQ_API_KEY`                            |
+| **Ollama**    | Free, fully local | `LLM_PROVIDER=ollama` (+ install Ollama)  |
+| Anthropic     | Paid              | `ANTHROPIC_API_KEY`                       |
+| OpenAI / etc. | Paid              | `OPENAI_API_KEY` (+ `OPENAI_BASE_URL`)    |
 
 > **Optional — Dify path:** `trigger_fault.py` sends the same alert to a [Dify](https://dify.ai)
 > Workflow app instead of running the loop in Python. Set `DIFY_*` in `.env` and run
@@ -103,7 +115,7 @@ automatically falls back to the offline walkthrough, so it never hard-fails.
 
 ## Tech stack
 
-- **Agent:** Python + Anthropic SDK (Claude tool-use loop)
+- **Agent:** Python LLM tool-use loop — backend-agnostic (Groq, Ollama, Anthropic, OpenAI-compatible)
 - **Tools:** Flask mock services standing in for Prometheus, Elasticsearch/ELK, and Ansible
 - **Optional orchestration:** [Dify](https://dify.ai) workflow (via `trigger_fault.py`)
 
