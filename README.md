@@ -9,8 +9,6 @@
 
 This is a reference implementation of a **closed-loop AIOps agent**. A fault alert fires; the agent investigates like an on-call SRE would — check the dashboards, read the logs, form a hypothesis, apply a fix, verify — and hands back a written report. The agent is a self-contained Python tool-use loop that works with any major LLM provider; observability backends (Prometheus, Elasticsearch/ELK, Ansible) are provided as lightweight mocks so the whole thing runs on a laptop.
 
-> **This is a real LLM agent, not a scripted demo.** The agent makes real API calls to whichever LLM you configure, reasons over tool outputs, and decides what to do next. The mock services provide realistic data for the agent to work with — swap them out for real observability backends and it works the same way.
-
 ## How it works
 
 ```mermaid
