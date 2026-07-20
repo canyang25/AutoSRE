@@ -17,6 +17,8 @@ logs/
 .pids/
 docker-compose-mock.yml
 reports/
+autosre.db
+*.db
 
 # Generated cache
 .pytest_cache/

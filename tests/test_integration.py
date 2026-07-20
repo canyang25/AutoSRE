@@ -5,8 +5,6 @@ These tests verify that the scenario catalog is well-formed and that the
 every defined scenario.
 """
 
-import pytest
-
 from trigger_fault import SCENARIOS, simulate
 
 

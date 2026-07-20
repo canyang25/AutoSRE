@@ -1,16 +1,9 @@
-"""Tests for agent.py – LLM backend resolution, tool dispatch, and data imports."""
+"""Tests for agent backend resolution, tool dispatch, and data imports."""
 
-import os
+from scenarios import SCENARIOS
+from autosre.agent import resolve_backend
+from autosre.tools import TOOLS, _dispatch
 
-import pytest
-
-# Project root is on sys.path via conftest.
-from agent import SCENARIOS, TOOLS, _dispatch, resolve_backend
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _clear_llm_env(monkeypatch):
     """Remove all LLM-related env vars so tests start from a clean slate."""
@@ -18,14 +11,12 @@ def _clear_llm_env(monkeypatch):
         "GROQ_API_KEY",
         "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
         "LLM_PROVIDER",
+        "LLM_FALLBACK_CHAIN",
     ):
         monkeypatch.delenv(key, raising=False)
 
-
-# ---------------------------------------------------------------------------
-# resolve_backend
-# ---------------------------------------------------------------------------
 
 class TestResolveBackend:
     """Verify resolve_backend picks the right provider from env vars."""
@@ -82,10 +73,19 @@ class TestResolveBackend:
         assert "groq.com" in cfg["base_url"]
         assert cfg["api_key"] == "gsk_explicit"
 
+    def test_resolve_backend_fallback_chain(self, monkeypatch):
+        _clear_llm_env(monkeypatch)
+        monkeypatch.setenv("LLM_FALLBACK_CHAIN", "groq,anthropic")
+        monkeypatch.setenv("GROQ_API_KEY", "gsk_chain")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-chain")
 
-# ---------------------------------------------------------------------------
-# _dispatch
-# ---------------------------------------------------------------------------
+        cfg = resolve_backend()
+
+        assert isinstance(cfg, list)
+        assert len(cfg) == 2
+        assert cfg[0]["provider"] == "groq"
+        assert cfg[1]["provider"] == "anthropic"
+
 
 class TestDispatch:
     """Verify _dispatch handles unknown tools gracefully."""
@@ -96,9 +96,20 @@ class TestDispatch:
         assert "error" in result
 
 
-# ---------------------------------------------------------------------------
-# Data-level smoke tests
-# ---------------------------------------------------------------------------
+class TestSanitizeAlert:
+    """Alert payload must not leak ground-truth hints to the LLM."""
+
+    def test_metrics_and_expected_stripped(self):
+        from autosre.agent import _sanitize_alert
+
+        scenario = SCENARIOS["db"]
+        alert = _sanitize_alert(scenario)
+        assert "metrics" not in alert
+        assert "expected_root_cause" not in alert
+        assert "expected_remediation" not in alert
+        assert "alert_id" in alert
+        assert "description" in alert
+
 
 class TestDataIntegrity:
     """Verify that SCENARIOS and TOOLS are imported and well-formed."""
@@ -117,6 +128,5 @@ class TestDataIntegrity:
             schema = tool["input_schema"]
             assert schema.get("type") == "object"
             assert "properties" in schema
-            # 'required' is optional (e.g. list_playbooks has no required params)
             if schema["properties"]:
                 assert "required" in schema

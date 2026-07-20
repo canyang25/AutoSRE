@@ -15,14 +15,12 @@ Usage:
 """
 
 import argparse
-import json
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import requests
+from scenarios import SCENARIOS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,7 +40,6 @@ DIFY_API_BASE = os.getenv("DIFY_API_BASE", "http://localhost/v1")
 DIFY_WORKFLOW_API_KEY = os.getenv("DIFY_WORKFLOW_API_KEY", "")
 WORKFLOW_URL = f"{DIFY_API_BASE.rstrip('/')}/workflows/run"
 
-from scenarios import SCENARIOS
 
 
 def send_to_dify(scenario_name: str) -> int:
