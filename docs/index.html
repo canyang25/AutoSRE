@@ -25,6 +25,7 @@
     <ul class="nav-links">
       <li><a href="#how-it-works" data-section="how-it-works">How it works</a></li>
       <li><a href="#features"     data-section="features">Features</a></li>
+      <li><a href="#production"   data-section="production">Production</a></li>
       <li><a href="#scenarios"    data-section="scenarios">Scenarios</a></li>
       <li><a href="#quickstart"   data-section="quickstart">Quickstart</a></li>
       <li><a href="#backends"     data-section="backends">Backends</a></li>
@@ -44,6 +45,7 @@
 <div class="mobile-menu" id="mobile-menu">
   <a href="#how-it-works">How it works</a>
   <a href="#features">Features</a>
+  <a href="#production">Production</a>
   <a href="#scenarios">Scenarios</a>
   <a href="#quickstart">Quickstart</a>
   <a href="#backends">LLM Backends</a>
@@ -274,6 +276,58 @@
         </div>
         <h3>Plug in real infrastructure</h3>
         <p>The mock services follow the same API contracts as real Prometheus, Elasticsearch, and Ansible. Point to your actual endpoints and the agent's reasoning loop works unchanged.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     PRODUCTION FEATURES
+══════════════════════════════════════════════════════ -->
+<section id="production">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-label">Production</span>
+      <h2 class="section-title">Hardened for real on-call</h2>
+      <p class="section-desc">
+        Beyond the laptop demo: webhooks, approval gates, provider fallback,
+        incident history, and an independent rollback safety net.
+      </p>
+    </div>
+
+    <div class="features-grid">
+
+      <div class="feature-card reveal reveal-delay-1">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <h3>Alertmanager webhook</h3>
+        <p>Run <code class="inline">python server.py</code> and POST to <code class="inline">/webhook/alertmanager</code>. Incidents are processed one at a time through a serial queue.</p>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-2">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </div>
+        <h3>Approval gate</h3>
+        <p>Remediation can require operator approval via <code class="inline">auto</code>, interactive <code class="inline">prompt</code>, or an external <code class="inline">webhook</code> before any playbook runs.</p>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-3">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        </div>
+        <h3>LLM fallback + rollback</h3>
+        <p>Chain providers with <code class="inline">LLM_FALLBACK_CHAIN</code>. If metrics stay unhealthy, an independent <code class="inline">AUTOSRE_ROLLBACK_PLAYBOOK</code> fires outside the LLM loop.</p>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-4">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        </div>
+        <h3>Incident history</h3>
+        <p>Every run is stored in SQLite and listed at <code class="inline">GET /incidents</code>, alongside Markdown reports under <code class="inline">reports/</code>.</p>
       </div>
 
     </div>

@@ -5,12 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 mkdir -p "$SCRIPT_DIR/tools"
-mkdir -p "$SCRIPT_DIR/data"
 mkdir -p "$SCRIPT_DIR/logs"
 
 echo "Creating/refreshing docker-compose file for mock services..."
 cat > docker-compose-mock.yml << 'EOF'
-version: '3'
 services:
   mock-prometheus:
     image: python:3.9-slim
@@ -54,38 +52,6 @@ services:
 networks:
   mocknet:
 EOF
-
-# Generate sample fault scenarios (idempotent)
-if [ ! -f "$SCRIPT_DIR/data/fault_scenarios.json" ]; then
-  echo "Generating sample fault scenarios..."
-  cat > "$SCRIPT_DIR/data/fault_scenarios.json" << 'EOF'
-{
-  "database_pool_exhausted": {
-    "id": "FAULT-001",
-    "timestamp": "2025-06-04T14:00:00Z",
-    "service": "order-service",
-    "symptoms": ["high_latency", "timeout_errors"],
-    "description": "Order API latency increased from 200ms to 1.5s"
-  },
-  "disk_space_full": {
-    "id": "FAULT-002",
-    "timestamp": "2025-06-04T10:30:00Z",
-    "service": "file-service",
-    "symptoms": ["disk_full", "write_errors"],
-    "description": "/data partition usage reached 98%"
-  },
-  "network_partition": {
-    "id": "FAULT-003",
-    "timestamp": "2025-06-04T16:45:00Z",
-    "service": "payment-service",
-    "symptoms": ["connection_reset", "high_packet_loss"],
-    "description": "Payment service network connection abnormal"
-  }
-}
-EOF
-else
-  echo "Sample fault scenarios already exist, skipping generation."
-fi
 
 echo "Stopping old mock backend services (if any)..."
 docker compose -f docker-compose-mock.yml down

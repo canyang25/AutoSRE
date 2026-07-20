@@ -8,10 +8,7 @@ when a playbook remediates metrics.  We patch ``requests.post`` in those
 tests so they run without live servers.
 """
 
-import json
 from unittest.mock import patch, MagicMock
-
-import pytest
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -163,7 +160,7 @@ class TestMockELK:
             "/_inject",
             json={
                 "service": "order-service",
-                "entry": {
+                "log": {
                     "timestamp": "2025-06-04T15:05:00Z",
                     "level": "INFO",
                     "message": "Temporary log for reset test",

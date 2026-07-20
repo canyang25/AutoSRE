@@ -92,20 +92,62 @@ python agent.py --list    # List all scenarios
 python agent.py db --simulate
 ```
 
+## Production features
+
+### Webhook server
+
+Receive Alertmanager webhooks and run incidents serially:
+
+```bash
+python server.py
+# POST /webhook/alertmanager
+# GET  /health
+# GET  /incidents
+```
+
+### Approval gate
+
+Gate remediation with `AUTOSRE_APPROVAL_MODE`:
+
+| Mode | Behavior |
+| ---- | -------- |
+| `auto` | Approve all playbooks (default) |
+| `prompt` | Ask an operator on stdin before `run_playbook` |
+| `webhook` | POST to `AUTOSRE_APPROVAL_WEBHOOK_URL`; require `{"approved": true}` |
+
+### LLM fallback chain
+
+Set `LLM_FALLBACK_CHAIN=groq,openai,anthropic` to try providers in order when one fails.
+
+### Incident history
+
+Every successful agent run is written to Markdown under `reports/` and persisted in SQLite (`autosre.db` by default). Query via `GET /incidents` or `autosre.store.get_history()`.
+
+### Rollback safety net
+
+If `AUTOSRE_ROLLBACK_PLAYBOOK` is set, AutoSRE re-checks a key metric after remediation and independently executes the rollback playbook when the service still looks unhealthy.
+
 ## Repo structure
 
 ```
 .
-├── agent.py              # LLM tool-use loop
+├── agent.py              # Thin CLI → autosre.agent
+├── server.py             # Thin CLI → autosre.webhook (FastAPI)
+├── autosre/
+│   ├── agent.py          # LLM tool-use loop, fallback, rollback
+│   ├── tools.py          # Prometheus / ELK / Ansible wrappers
+│   ├── approval.py       # Remediation approval gate
+│   ├── retry.py          # HTTP / LLM retries
+│   ├── logging.py        # JSON logs + trace IDs
+│   ├── store.py          # SQLite incident history
+│   ├── webhook.py        # Alertmanager webhook API
+│   └── config.py         # Env-driven configuration
 ├── scenarios.py/.json    # Fault scenario definitions
-├── eval.py               # Evaluation harness
+├── eval.py               # Evaluation harness (--json, partial scores)
 ├── trigger_fault.py      # Optional Dify workflow trigger
 ├── start_services.sh     # Start mock backends (no Docker)
 ├── deploy.sh             # Start mock backends via Docker
-├── tools/
-│   ├── mock_prometheus.py
-│   ├── mock_elk.py
-│   └── mock_ansible.py
+├── tools/                # Mock Prometheus / ELK / Ansible
 ├── fixtures/             # Canned metrics, logs, playbooks
 ├── tests/                # Test suite
 ├── docs/                 # Project website (GitHub Pages)
@@ -117,7 +159,7 @@ python agent.py db --simulate
 The mock services use the same API contracts as the real tools. To switch:
 
 1. Set `PROMETHEUS_URL`, `ELK_URL`, and `ANSIBLE_URL` in `.env` to your actual endpoints
-2. Add auth headers in the tool wrapper functions in `agent.py` if needed
+2. Add auth headers in the tool wrapper functions in `autosre/tools.py` if needed
 
 The agent reasoning loop is unchanged either way.
 
