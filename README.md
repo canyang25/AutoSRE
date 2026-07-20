@@ -144,12 +144,16 @@ If `AUTOSRE_ROLLBACK_PLAYBOOK` is set, AutoSRE re-checks a key metric after reme
 ├── server.py             # Thin CLI → autosre.webhook (FastAPI)
 ├── autosre/
 │   ├── agent.py          # LLM tool-use loop, fallback, rollback
-│   ├── tools.py          # Prometheus / ELK / Ansible wrappers
+│   ├── tools.py          # Thin tool dispatch + policy/approval gates
+│   ├── backends/         # mock|real Prometheus, ES, AWX adapters
+│   ├── policy.py         # Blast-radius / allowlist gate
+│   ├── audit.py          # Append-only JSONL audit log
 │   ├── approval.py       # Remediation approval gate
 │   ├── retry.py          # HTTP / LLM retries
 │   ├── logging.py        # JSON logs + trace IDs
 │   ├── store.py          # SQLite incident history
 │   ├── webhook.py        # Alertmanager webhook API
+│   ├── metrics_self.py   # In-process agent counters
 │   └── config.py         # Env-driven configuration
 ├── scenarios.py/.json    # Fault scenario definitions
 ├── eval.py               # Evaluation harness (--json, partial scores)
