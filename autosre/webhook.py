@@ -62,21 +62,24 @@ def _map_alertmanager_to_scenario(payload: dict) -> Optional[str]:
     return None
 
 
-async def _incident_worker(queue: asyncio.Queue, cfg: AutoSREConfig) -> None:
+async def _incident_worker(queue: asyncio.Queue, app: FastAPI) -> None:
     """Process queued incidents one at a time."""
-    from autosre.agent import run_agent
-
     while True:
         item = await queue.get()
+        app.state.busy = True
         try:
             scenario = item.get("scenario")
             logger.info("Worker picked up scenario=%s", scenario)
+            # Late import so tests can monkeypatch autosre.agent.run_agent.
+            import autosre.agent as agent_mod
+
             with TraceContext(item.get("trace_id")):
                 # run_agent is sync/blocking — offload to a thread.
-                await asyncio.to_thread(run_agent, scenario, False)
+                await asyncio.to_thread(agent_mod.run_agent, scenario, False)
         except Exception as exc:
             logger.exception("Worker failed for item %s: %s", item, exc)
         finally:
+            app.state.busy = False
             queue.task_done()
 
 
@@ -89,10 +92,11 @@ def create_app(cfg: Optional[AutoSREConfig] = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         global _queue, _worker_task
         _queue = asyncio.Queue(maxsize=1)
-        _worker_task = asyncio.create_task(_incident_worker(_queue, cfg))
         app.state.queue = _queue
         app.state.cfg = cfg
         app.state.store = IncidentStore(cfg.db_path)
+        app.state.busy = False
+        _worker_task = asyncio.create_task(_incident_worker(_queue, app))
         logger.info("Webhook server started on configured port %s", cfg.port)
         yield
         if _worker_task:
@@ -128,7 +132,8 @@ def create_app(cfg: Optional[AutoSREConfig] = None) -> FastAPI:
             )
 
         queue: asyncio.Queue = app.state.queue
-        if queue.full():
+        # Reject if an incident is in-flight or already queued (serial processing).
+        if app.state.busy or queue.full() or queue.qsize() > 0:
             return JSONResponse(
                 status_code=429,
                 content={
@@ -140,8 +145,11 @@ def create_app(cfg: Optional[AutoSREConfig] = None) -> FastAPI:
         trace = TraceContext()
         item = {"scenario": scenario, "payload": payload, "trace_id": trace.trace_id}
         try:
+            # Reserve the busy slot before enqueue so a second request cannot race in.
+            app.state.busy = True
             queue.put_nowait(item)
         except asyncio.QueueFull:
+            app.state.busy = False
             return JSONResponse(
                 status_code=429,
                 content={

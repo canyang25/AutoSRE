@@ -28,8 +28,6 @@ def test_incidents_empty(client):
 
 
 def test_alertmanager_accepts_known_scenario(client, monkeypatch):
-    # Avoid actually running the agent worker's run_agent in the thread for long;
-    # the queue acceptance is what we care about here.
     monkeypatch.setattr("autosre.agent.run_agent", lambda *a, **k: 0)
 
     payload = {
@@ -68,19 +66,9 @@ def test_map_explicit_scenario_label():
     assert _map_alertmanager_to_scenario(payload) == "disk"
 
 
-def test_busy_queue_returns_429(client, monkeypatch):
-    monkeypatch.setattr("autosre.agent.run_agent", lambda *a, **k: 0)
-
-    # Fill the queue without letting the worker drain it by replacing the queue.
-    import asyncio
-
-    async def _block_forever():
-        await asyncio.Event().wait()
-
-    # Put an item directly so the queue is full (maxsize=1).
-    q = client.app.state.queue
-    q.put_nowait({"scenario": "db", "trace_id": "x"})
-
+def test_busy_queue_returns_429(client):
+    # Simulate an in-flight incident; the serial gate must reject new work.
+    client.app.state.busy = True
     payload = {
         "alerts": [
             {
@@ -91,9 +79,4 @@ def test_busy_queue_returns_429(client, monkeypatch):
     }
     resp = client.post("/webhook/alertmanager", json=payload)
     assert resp.status_code == 429
-    # Drain so lifespan shutdown is clean
-    try:
-        q.get_nowait()
-        q.task_done()
-    except Exception:
-        pass
+    assert resp.json()["status"] == "busy"

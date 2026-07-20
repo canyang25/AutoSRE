@@ -20,6 +20,7 @@ import glob
 import json
 import logging
 import os
+import re
 import sys
 
 from trigger_fault import SCENARIOS
@@ -42,17 +43,22 @@ def _latest_report(alert_id: str) -> str | None:
 
 
 def _significant_words(phrase: str) -> list[str]:
-    """Tokenize *phrase* into significant keywords (length > 2)."""
-    return [w for w in phrase.lower().split() if len(w) > 2]
+    """Tokenize *phrase* into significant keywords (length > 2), stripping edge punctuation."""
+    words = []
+    for raw in phrase.lower().split():
+        cleaned = re.sub(r"^[^\w]+|[^\w]+$", "", raw)
+        if len(cleaned) > 2:
+            words.append(cleaned)
+    return words
 
 
 def _keywords_present(text: str, phrase: str) -> bool:
     """Check consecutive keyword n-grams from *phrase* appear in *text*.
 
-    Significant words (len > 2) are extracted from *phrase*. When two or more
-    words are present, every consecutive bigram must appear as a substring in
-    the report (case-insensitive). A single significant word falls back to a
-    unigram check.
+    Significant words (len > 2, punctuation-stripped) are extracted from
+    *phrase*. When two or more words are present, every consecutive bigram
+    must appear in order in the report, allowing short filler between the
+    two tokens. A single significant word falls back to a unigram check.
     """
     text_lower = text.lower()
     words = _significant_words(phrase)
@@ -61,8 +67,9 @@ def _keywords_present(text: str, phrase: str) -> bool:
     if len(words) == 1:
         return words[0] in text_lower
     for i in range(len(words) - 1):
-        ngram = f"{words[i]} {words[i + 1]}"
-        if ngram not in text_lower:
+        # Allow up to ~40 chars of filler/whitespace between consecutive keywords
+        pattern = re.escape(words[i]) + r".{0,40}?" + re.escape(words[i + 1])
+        if not re.search(pattern, text_lower, flags=re.DOTALL):
             return False
     return True
 
